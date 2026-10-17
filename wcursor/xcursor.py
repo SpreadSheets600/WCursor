@@ -253,22 +253,57 @@ def scale_smooth(img: Image, size: int) -> Image:
     )
 
 
+def scale_pixel(img: Image, size: int, max_factor: int = 8) -> Image:
+    """Pixel-art friendly upscale for non-integer targets (e.g. 32 -> 48).
+
+    The bitmap is first blown up to a whole multiple of its own size with
+    nearest-neighbour (so hard pixel edges are preserved), then area-averaged
+    down to the requested size.  For a 32px source this gives a *much* crisper
+    48px than a direct smooth resample, without the uneven, "torn" pixels a
+    direct 1.5x nearest scale would produce.
+    """
+    w, h = img.width, img.height
+    if w != h:
+        # Non-square art is unusual for cursors; fall back to a smooth resample.
+        return scale_smooth(img, size)
+    if size <= w:
+        return scale_smooth(img, size)
+    if size % w == 0:
+        return scale_nearest(img, size)
+    factor = min(max_factor, max(2, math.ceil(size / w)))
+    big = scale_nearest(img, w * factor)
+    return scale_smooth(big, size)
+
+
 def rescale(img: Image, size: int, method: str = "auto") -> Image:
     """Rescale an image to ``size``.
 
-    ``method`` is one of ``auto`` (nearest for exact integer upscales, smooth
-    otherwise), ``nearest`` or ``smooth``.
+    ``method`` is one of:
+
+    * ``auto``    - nearest for exact integer upscales, :func:`scale_pixel`
+                    for fractional upscales (e.g. 48 from 32), smooth for
+                    downscales.  This is the default and keeps pixel art crisp.
+    * ``nearest`` - hard nearest-neighbour.
+    * ``pixel``   - supersample: nearest up to an integer multiple, then area
+                    down to ``size`` (best for fractional sizes like 48).
+    * ``smooth``  - bicubic up / area down (soft, photo friendly).
     """
     if not 0 < size <= _MAX_DIM:
         raise XcursorError(f"size out of range: {size}")
     w = img.width
     if method == "auto":
-        integer_up = size > w and size % w == 0 and img.height == img.width
-        method = "nearest" if integer_up else "smooth"
+        if size > w and size % w == 0 and img.height == img.width:
+            method = "nearest"
+        elif size > w:
+            method = "pixel"
+        else:
+            method = "smooth"
     if method == "nearest":
         return scale_nearest(img, size)
     if method == "smooth":
         return scale_smooth(img, size)
+    if method == "pixel":
+        return scale_pixel(img, size)
     raise XcursorError(f"unknown method: {method}")
 
 
