@@ -2,7 +2,7 @@
 
 Convert Windows cursor packs (`.ani` animated / `.cur` static / `.ico`) into
 **Linux Xcursor themes**, install them, add extra sizes, and switch the theme +
-size system-wide — in one tool, with no external dependencies.
+size system-wide  in one tool, with no external dependencies.
 
 Windows cursor packs are almost always 32px pixel art. Dragging them up to the
 sizes modern desktops like (48px, 64px, 96px) normally produces either a blurry
@@ -22,7 +22,8 @@ X cursor library expects.
 
 ```bash
 cd ~/Projects/wcursor
-pip install -e .            # provides the `wcursor` command
+pip install -e . 
+
 # or run it without installing:
 python3 -m wcursor --help
 ```
@@ -107,7 +108,3 @@ Layout:
 | `wcursor/install.py` | install / list / remove themes |
 | `wcursor/apply.py` | push theme + size to DMS, X11, GTK, GSettings, niri |
 | `wcursor/cli.py` | command line front end |
-
-## License
-
-MIT
