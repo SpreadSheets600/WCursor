@@ -130,7 +130,10 @@ def parse_ani(data: bytes) -> List[Frame]:
         raise CursorFormatError("ANI has no frames")
 
     n_frames = anih["n_frames"] or len(frames)
-    n_steps = anih["n_steps"] or n_frames
+    if seq:
+        n_steps = max(len(seq), anih["n_steps"] or 0)
+    else:
+        n_steps = anih["n_steps"] or n_frames
     steps = list(seq) if seq else list(range(n_steps))
     if len(steps) < n_steps:
         steps += list(range(len(steps), n_steps))
