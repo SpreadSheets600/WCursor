@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wcursor"
+version = "0.1.0"
+description = "Convert, upscale, install and switch Windows cursors (.ani/.cur) on Linux"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Soham Maity" }]
+keywords = ["cursor", "xcursor", "ani", "cur", "windows", "linux", "theme"]
+dependencies = []
+
+[project.scripts]
+wcursor = "wcursor.cli:main"
+
+[tool.setuptools]
+packages = ["wcursor"]
