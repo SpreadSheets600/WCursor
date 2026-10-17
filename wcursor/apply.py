@@ -259,6 +259,18 @@ def _apply_gsettings(theme: str, size: int, dry_run: bool) -> Step:
 
 # --- orchestration -----------------------------------------------------------
 
+def _dms_needs_update(theme: str, size: int) -> Optional[bool]:
+    """True when the DMS files differ from the target, None if settings are absent."""
+    data = _read_json(DMS_SETTINGS)
+    if data is None:
+        return None
+    cursor = data.get("cursorSettings") or {}
+    if cursor.get("theme") != theme or _safe_int(cursor.get("size")) != int(size):
+        return True
+    expected = DMS_CURSOR_KDL_TEMPLATE.replace("{theme}", theme).replace("{size}", str(int(size)))
+    return _read_text(DMS_CURSOR_KDL) != expected
+
+
 def apply_cursor(
     theme: str,
     size: int,
@@ -278,20 +290,22 @@ def apply_cursor(
 
     # DMS first: restarting it rewrites some of the files below.
     if dms:
-        were_running = dms_running()
-        if were_running and not dry_run and restart_dms:
+        needs = _dms_needs_update(theme, size)
+        if dry_run:
+            steps.append(_apply_dms_settings(theme, size, True))
+            steps.append(_apply_dms_cursor_kdl(theme, size, True))
+        elif needs is False:
+            # Already correct: don't disturb a running shell for nothing.
+            steps.append(Step("dms settings.json", "unchanged", f"{theme}/{size}"))
+            steps.append(Step("dms cursor.kdl", "unchanged", f"{theme}/{size}"))
+        elif dms_running() and restart_dms:
             if not _stop_dms():
                 steps.append(Step("dms", "error", "could not stop DMS; not changed"))
             else:
                 steps.append(_apply_dms_settings(theme, size, False))
                 steps.append(_apply_dms_cursor_kdl(theme, size, False))
-                if _start_dms():
-                    steps.append(Step("dms", "restarted", ""))
-                else:
-                    steps.append(Step("dms", "error", "could not start DMS"))
-        elif dry_run:
-            steps.append(_apply_dms_settings(theme, size, True))
-            steps.append(_apply_dms_cursor_kdl(theme, size, True))
+                steps.append(Step("dms", "restarted", "") if _start_dms()
+                             else Step("dms", "error", "could not start DMS"))
         else:
             # DMS not running: safe to edit its files directly.
             steps.append(_apply_dms_settings(theme, size, False))
