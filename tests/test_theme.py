@@ -94,10 +94,45 @@ class TestUpscale(unittest.TestCase):
             theme.add_sizes(out, [64], dry_run=True, verbose=False)
             self.assertEqual((out / "cursors" / "left_ptr").read_bytes(), before)
 
+    def test_non_square_source_is_normalised_then_upscaled_crisply(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pack_dir = Path(tmp) / "pack"
+            pack_dir.mkdir(parents=True)
+            # 32x33 art: one row too tall
+            frame = synthetic.cur([(32, 33, 0, 0, synthetic.solid_rgba(32, 33, (9, 9, 9, 255)))])
+            (pack_dir / "Normal.ani").write_bytes(synthetic.ani([frame]))
+            (pack_dir / "install.inf").write_text('[Strings]\npointer = "Normal.ani"\n')
+            source = pack.load_pack(pack_dir)
+
+            out = Path(tmp) / "theme"
+            theme.build(source, out, sizes=[32, 64], verbose=False)
+            groups = theme.group_by_size(xcursor.read(out / "cursors" / "left_ptr"))
+            self.assertEqual((groups[32][0].width, groups[32][0].height), (32, 32))
+            # 64 must be an exact 2x of the normalised 32
+            self.assertEqual(groups[64][0].pixels, xcursor.scale_nearest(groups[32][0], 64).pixels)
+
     def test_choose_source_size_prefers_largest_below(self):
         self.assertEqual(theme.choose_source_size([24, 32, 48], 64), 48)
         self.assertEqual(theme.choose_source_size([24, 32, 48], 40), 32)
         self.assertEqual(theme.choose_source_size([48, 64], 32), 48)
+
+    def test_upscale_uses_recorded_native_for_exact_multiple(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = _make_pack(Path(tmp) / "pack")
+            out = Path(tmp) / "theme"
+            theme.build(source, out, sizes=[24, 32], verbose=False)
+            # the sidecar remembers the artwork's native size
+            self.assertEqual(theme.native_sizes(out)["left_ptr"], 32)
+
+            theme.add_sizes(out, [64], verbose=False)
+            groups = theme.group_by_size(xcursor.read(out / "cursors" / "left_ptr"))
+            # 64 must be an exact 2x of the native 32, not a resample of the 24
+            expected = xcursor.scale_nearest(groups[32][0], 64)
+            self.assertEqual(groups[64][0].pixels, expected.pixels)
+            self.assertEqual(len(groups[64]), len(groups[32]))
+
+            # and the sidecar is kept up to date
+            self.assertEqual(theme.read_meta(out)["cursors"]["left_ptr"]["sizes"], [24, 32, 64])
 
 
 if __name__ == "__main__":
