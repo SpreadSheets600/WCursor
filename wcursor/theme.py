@@ -139,3 +139,74 @@ def read_theme_sizes(theme_dir) -> List[int]:
                 except xcursor.XcursorError:
                     continue
     return sorted(sizes)
+
+
+def group_by_size(images: Iterable[xcursor.Image]) -> Dict[int, List[xcursor.Image]]:
+    """``{nominal size: [frames in order]}``."""
+    groups: Dict[int, List[xcursor.Image]] = {}
+    for image in images:
+        groups.setdefault(image.size, []).append(image)
+    return groups
+
+
+def choose_source_size(available: Sequence[int], target: int) -> int:
+    """Best existing size to derive ``target`` from.
+
+    Prefers the largest size that does not exceed the target (so a 48px is
+    built from a 32px, not a 24px), otherwise falls back to the smallest one.
+    """
+    lower = [s for s in available if s <= target]
+    return max(lower) if lower else min(available)
+
+
+def add_sizes(
+    theme_dir,
+    sizes: Iterable[int],
+    method: str = "auto",
+    from_size: Optional[int] = None,
+    dry_run: bool = False,
+    verbose: bool = False,
+) -> Dict[str, List[int]]:
+    """Ensure every cursor in ``theme_dir`` contains ``sizes``.
+
+    Missing sizes are generated from the best existing one (see
+    :func:`choose_source_size`), frame-by-frame, so animations keep playing.
+    Returns ``{cursor name: final sizes}``.
+    """
+    cursors_dir = Path(theme_dir) / "cursors"
+    if not cursors_dir.is_dir():
+        raise ThemeError(f"{theme_dir} is not a cursor theme")
+    requested = sorted({int(s) for s in sizes})
+    for s in requested:
+        if not 0 < s <= MAX_SIZE:
+            raise ThemeError(f"size out of range (1..{MAX_SIZE}): {s}")
+
+    result: Dict[str, List[int]] = {}
+    for path in sorted(cursors_dir.iterdir()):
+        if path.is_symlink() or not path.is_file():
+            continue
+        try:
+            images = xcursor.read(path)
+        except xcursor.XcursorError:
+            continue
+        groups = group_by_size(images)
+        existing = sorted(groups)
+        final = sorted(set(existing) | set(requested))
+        result[path.name] = final
+        if final == existing:
+            continue
+        new_images: List[xcursor.Image] = []
+        for target in requested:
+            if target in groups:
+                continue
+            source_size = from_size if from_size in groups else choose_source_size(existing, target)
+            for frame in groups[source_size]:
+                new_images.append(xcursor.rescale(frame, target, method))
+        combined = images + new_images
+        combined.sort(key=lambda im: im.size)
+        if not dry_run:
+            xcursor.write(path, combined)
+        if verbose:
+            verb = "would add" if dry_run else "added"
+            print(f"  {verb} {path.name:<18} {existing} -> {final}")
+    return result
