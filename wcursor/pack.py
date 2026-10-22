@@ -23,6 +23,10 @@ from . import roles
 CURSOR_SUFFIXES = (".ani", ".cur", ".ico")
 INF_NAMES = ("install.inf", "installer.inf", "cursor.inf", "install.inf.txt")
 
+# INF keys / filename stems that mean "real open palm" rather than the
+# pointing "link" hand.  Packs rarely ship one.
+PALM_KEYS = {"openhand", "handopen", "palm", "hand1"}
+
 
 class PackError(Exception):
     """Raised when a folder cannot be interpreted as a cursor pack."""
@@ -150,11 +154,34 @@ def collect_cursor_files(directory: Path) -> List[Path]:
     )
 
 
+def _normalise_key(text: str) -> str:
+    return re.sub(r"[\s_\-]", "", text.strip().lower())
+
+
+def find_palm_source(directory: Path, files: List[Path],
+                     strings: Dict[str, str]) -> Optional[Path]:
+    """Return the pack's open-hand/palm image, if it ships one.
+
+    Looks at the INF ``[Strings]`` values first (so a pack can declare
+    ``openhand = Palm.ani``), then at bare filenames.
+    """
+    for key, value in strings.items():
+        if _normalise_key(key) in PALM_KEYS:
+            resolved = _resolve_file(directory, value)
+            if resolved is not None:
+                return resolved
+    for path in files:
+        if _normalise_key(path.stem) in PALM_KEYS:
+            return path
+    return None
+
+
 def build_mapping(directory: Path) -> Tuple[Dict[str, Path], List[Path], Optional[str]]:
     """Return ``(canonical -> file, unmapped files, scheme name)``."""
     mapping: Dict[str, Path] = {}
     files = collect_cursor_files(directory)
     scheme: Optional[str] = None
+    strings: Dict[str, str] = {}
 
     inf = find_inf(directory)
     if inf:
@@ -179,6 +206,15 @@ def build_mapping(directory: Path) -> Tuple[Dict[str, Path], List[Path], Optiona
             mapping[canonical] = path
             used.add(path)
 
+    # The Move slot (fleur) should be an open palm when the pack ships one.
+    # Windows packs almost never do, so keep the pack's 4-corner move arrow as
+    # the fallback.  This never touches hand2/link, which keeps the pack's own
+    # pointing hand.
+    palm = find_palm_source(directory, files, strings)
+    if palm is not None:
+        mapping["fleur"] = palm
+
+    used = set(mapping.values())
     unmapped = [p for p in files if p not in used]
     return mapping, unmapped, scheme
 

@@ -58,6 +58,12 @@ class TestRoles(unittest.TestCase):
     def test_aliases(self):
         self.assertIn("default", roles.aliases_for("left_ptr"))
         self.assertIn("hand", roles.aliases_for("hand2"))
+        self.assertIn("pointer", roles.aliases_for("hand2"))
+        # Open-hand / grab names follow the Move cursor, never the link hand.
+        for name in ("grab", "grabbing", "closedhand", "hand1", "openhand"):
+            with self.subTest(name=name):
+                self.assertIn(name, roles.aliases_for("fleur"))
+                self.assertNotIn(name, roles.aliases_for("hand2"))
         self.assertEqual(roles.aliases_for("pin"), [])
 
     def test_canonical_count(self):

@@ -87,6 +87,25 @@ DMS keeps its settings in memory and rewrites `settings.json` on exit, and its
 is to stop DMS, edit the file, and start DMS again. `wcursor` does that
 automatically (and leaves DMS alone if it is not running).
 
+## Role mapping
+
+`wcursor` reads the pack's `install.inf` first, then falls back to filename
+guesses. The two hand slots are handled differently:
+
+- **Move (`fleur`)** — if the pack ships a real open-palm image
+  (`OpenHand.*`, `Palm.*`, `Hand1.*`, or an `openhand = ...` entry in
+  `install.inf`), that image is used. Most Windows packs do not ship one, so
+  `wcursor` keeps the pack's own 4-corner move arrow instead of leaving the
+  slot empty or borrowing the pointing hand.
+- **Link (`hand2`)** — always keeps the pack's pointing hand (hover, buttons,
+  link-click).
+
+The open-hand aliases (`grab`, `grabbing`, `closedhand`, `hand1`, `openhand`)
+are aliases of `fleur`, so desktops asking for `grab` get the same image
+rather than falling back to the system theme. When a pack has no dedicated
+image for a role, `wcursor` never invents one; it reuses the closest matching
+pack image, or leaves that canonical slot absent.
+
 ## Development
 
 ```bash

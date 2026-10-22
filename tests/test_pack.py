@@ -87,6 +87,25 @@ class TestDiscovery(unittest.TestCase):
             with self.assertRaises(pack.PackError):
                 pack.load_pack(tmp)
 
+    def test_hand_keeps_link_and_move_keeps_arrow_when_no_palm(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._write(tmp, "Normal.ani")
+            link = self._write(tmp, "Link.ani")
+            move = self._write(tmp, "Move.ani")
+            result = pack.load_pack(tmp)
+            self.assertEqual(result.mapping["hand2"], link)
+            self.assertEqual(result.mapping["fleur"], move)
+
+    def test_real_palm_is_preferred_for_move(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._write(tmp, "Normal.ani")
+            link = self._write(tmp, "Link.ani")
+            self._write(tmp, "Move.ani")
+            palm = self._write(tmp, "OpenHand.ani")
+            result = pack.load_pack(tmp)
+            self.assertEqual(result.mapping["fleur"], palm)
+            self.assertEqual(result.mapping["hand2"], link)
+
     def test_single_file_pack(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = self._write(tmp, "Frieren busy.ani")
